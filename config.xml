@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<config>
+    <package>Newtonsoft.Json</package>
+    <repository>https://api.nuget.org/v3/index.json</repository>
+    <test_mode>false</test_mode>
+    <version>13.0.3</version>
+    <output_file>dependencies.png</output_file>
+    <ascii_tree>true</ascii_tree>
+</config>
