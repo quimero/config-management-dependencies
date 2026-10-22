@@ -3,6 +3,7 @@
 import argparse
 
 from src.config import load_config
+from src.nuget import get_direct_dependencies
 
 
 DEFAULT_CONFIG = "config.xml"
@@ -21,14 +22,42 @@ def parse_args():
     return parser.parse_args()
 
 
-def print_config(config):
-    """Вывести настройки в формате ключ-значение."""
-    print(f"package={config.package}")
-    print(f"repository={config.repository}")
-    print(f"test_mode={config.test_mode}")
-    print(f"version={config.version}")
-    print(f"output_file={config.output_file}")
-    print(f"ascii_tree={config.ascii_tree}")
+def print_dependencies(
+    package,
+    version,
+    dependencies,
+):
+    """Вывести прямые зависимости пакета."""
+    print(
+        f"Прямые зависимости "
+        f"{package} {version}:"
+    )
+
+    if not dependencies:
+        print("Зависимости отсутствуют")
+        return
+
+    for dependency in dependencies:
+        print(
+            f"- {dependency.package} "
+            f"{dependency.version_range} "
+            f"[{dependency.framework}]"
+        )
+
+
+def load_dependencies(config):
+    """Получить зависимости по конфигурации."""
+    if config.test_mode:
+        raise ValueError(
+            "Тестовый режим будет реализован "
+            "на этапе 3"
+        )
+
+    return get_direct_dependencies(
+        config.repository,
+        config.package,
+        config.version,
+    )
 
 
 def main():
@@ -37,11 +66,16 @@ def main():
 
     try:
         config = load_config(args.config)
+        dependencies = load_dependencies(config)
     except ValueError as error:
-        print(f"Ошибка конфигурации: {error}")
+        print(f"Ошибка: {error}")
         return 1
 
-    print_config(config)
+    print_dependencies(
+        config.package,
+        config.version,
+        dependencies,
+    )
     return 0
 
 
