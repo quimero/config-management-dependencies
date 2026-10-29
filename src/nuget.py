@@ -1,6 +1,7 @@
 """Получение зависимостей пакетов через NuGet V3 API."""
 
 from dataclasses import dataclass
+from functools import lru_cache
 import gzip
 import json
 from urllib.error import HTTPError, URLError
@@ -25,6 +26,84 @@ class Dependency:
     framework: str
 
 
+def get_minimum_version(version_range):
+    """Получить минимальную версию из диапазона NuGet."""
+    value = version_range.strip()
+
+    if not value:
+        raise ValueError(
+            "Пустой диапазон версии зависимости"
+        )
+
+    if not value.startswith(("[", "(")):
+        return value
+
+    if "," not in value:
+        if value.startswith("[") and value.endswith("]"):
+            version = value[1:-1].strip()
+
+            if version:
+                return version
+
+        raise ValueError(
+            f"Некорректный диапазон версии: {value}"
+        )
+
+    minimum = value[1:].split(",", 1)[0].strip()
+
+    if not minimum:
+        raise ValueError(
+            f"Диапазон не содержит минимальную версию: {value}"
+        )
+
+    if value.startswith("("):
+        raise ValueError(
+            "Диапазон с исключённой минимальной "
+            "версией пока не поддерживается"
+        )
+
+    return minimum
+
+def make_nuget_node(package, version):
+    """Сформировать имя узла графа NuGet."""
+    return f"{package}@{version}"
+
+
+def split_nuget_node(node):
+    """Разделить узел на пакет и версию."""
+    if "@" not in node:
+        raise ValueError(
+            f"Некорректный узел NuGet: {node}"
+        )
+
+    package, version = node.rsplit("@", 1)
+    return package, version
+
+
+def make_dependency_nodes(dependencies):
+    """Преобразовать зависимости в узлы графа."""
+    nodes = []
+    added = set()
+
+    for dependency in dependencies:
+        version = get_minimum_version(
+            dependency.version_range
+        )
+        node = make_nuget_node(
+            dependency.package,
+            version
+        )
+
+        if node in added:
+            continue
+
+        added.add(node)
+        nodes.append(node)
+
+    return nodes
+
+
+@lru_cache(maxsize=None)
 def fetch_json(url):
     """Получить JSON по указанному URL."""
     request = Request(
@@ -186,3 +265,16 @@ def get_direct_dependencies(
         version
     )
     return extract_dependencies(catalog)
+
+
+def get_nuget_dependency_nodes(repository, node):
+    """Получить дочерние узлы пакета NuGet."""
+    package, version = split_nuget_node(node)
+
+    dependencies = get_direct_dependencies(
+        repository,
+        package,
+        version,
+    )
+
+    return make_dependency_nodes(dependencies)

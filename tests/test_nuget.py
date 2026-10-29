@@ -5,11 +5,17 @@ from unittest.mock import patch
 
 from src.nuget import (
     ANY_VERSION_RANGE,
+    Dependency,
     extract_dependencies,
     find_catalog_entry,
     find_registration_base,
     get_direct_dependencies,
+    get_minimum_version,
+    get_nuget_dependency_nodes,
+    make_dependency_nodes,
+    make_nuget_node,
     make_registration_url,
+    split_nuget_node,
 )
 
 
@@ -193,6 +199,89 @@ class TestNuget(unittest.TestCase):
             "Package.B"
         )
 
+    def test_minimum_version(self):
+        """Получить минимальную версию."""
+        self.assertEqual(
+            get_minimum_version("[4.3.0, )"),
+            "4.3.0"
+        )
+
+    def test_exact_version(self):
+        """Получить точную версию."""
+        self.assertEqual(
+            get_minimum_version("[2.0.0]"),
+            "2.0.0"
+        )
+
+    def test_nuget_node(self):
+        """Создать и разобрать узел NuGet."""
+        node = make_nuget_node(
+            "Test.Package",
+            "1.0.0"
+        )
+
+        self.assertEqual(
+            node,
+            "Test.Package@1.0.0"
+        )
+        self.assertEqual(
+            split_nuget_node(node),
+            ("Test.Package", "1.0.0")
+        )
+
+    def test_dependency_nodes(self):
+        """Преобразовать зависимости в узлы."""
+        dependencies = [
+            Dependency(
+                package="Package.A",
+                version_range="[1.0.0, )",
+                framework="net6.0",
+            ),
+            Dependency(
+                package="Package.A",
+                version_range="[1.0.0, )",
+                framework="net7.0",
+            ),
+        ]
+
+        nodes = make_dependency_nodes(
+            dependencies
+        )
+
+        self.assertEqual(
+            nodes,
+            ["Package.A@1.0.0"]
+        )
+
+    @patch("src.nuget.get_direct_dependencies")
+    def test_nuget_dependency_nodes(
+        self,
+        mock_dependencies,
+    ):
+        """Получить дочерние узлы NuGet."""
+        mock_dependencies.return_value = [
+            Dependency(
+                package="Package.A",
+                version_range="[1.2.0, )",
+                framework="net6.0",
+            )
+        ]
+
+        nodes = get_nuget_dependency_nodes(
+            "https://example.test/index.json",
+            "Root.Package@2.0.0",
+        )
+
+        self.assertEqual(
+            nodes,
+            ["Package.A@1.2.0"],
+        )
+
+        mock_dependencies.assert_called_once_with(
+            "https://example.test/index.json",
+            "Root.Package",
+            "2.0.0",
+        )
 
 if __name__ == "__main__":
     unittest.main()

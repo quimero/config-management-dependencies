@@ -3,7 +3,16 @@
 import argparse
 
 from src.config import load_config
-from src.nuget import get_direct_dependencies
+from src.graph import build_dependency_graph
+from src.nuget import (
+    get_nuget_dependency_nodes,
+    make_nuget_node,
+)
+from src.test_repository import (
+    get_test_dependencies,
+    load_test_repository,
+    make_test_node,
+)
 
 
 DEFAULT_CONFIG = "config.xml"
@@ -22,42 +31,69 @@ def parse_args():
     return parser.parse_args()
 
 
-def print_dependencies(
-    package,
-    version,
-    dependencies,
-):
-    """Вывести прямые зависимости пакета."""
-    print(
-        f"Прямые зависимости "
-        f"{package} {version}:"
+def print_graph(graph):
+    """Вывести граф зависимостей."""
+    print("Граф зависимостей:")
+
+    for package, dependencies in graph.items():
+        if dependencies:
+            text = ", ".join(dependencies)
+        else:
+            text = "-"
+
+        print(f"{package} -> {text}")
+
+
+def run_test_mode(config):
+    """Запустить работу с тестовым репозиторием."""
+    repository = load_test_repository(
+        config.repository
     )
-
-    if not dependencies:
-        print("Зависимости отсутствуют")
-        return
-
-    for dependency in dependencies:
-        print(
-            f"- {dependency.package} "
-            f"{dependency.version_range} "
-            f"[{dependency.framework}]"
-        )
-
-
-def load_dependencies(config):
-    """Получить зависимости по конфигурации."""
-    if config.test_mode:
-        raise ValueError(
-            "Тестовый режим будет реализован "
-            "на этапе 3"
-        )
-
-    return get_direct_dependencies(
-        config.repository,
+    start_node = make_test_node(
         config.package,
         config.version,
     )
+
+    def provider(node):
+        return get_test_dependencies(
+            repository,
+            node,
+        )
+
+    graph = build_dependency_graph(
+        start_node,
+        provider,
+    )
+    print_graph(graph)
+
+
+def run_nuget_mode(config):
+    """Построить полный граф зависимостей NuGet."""
+    start_node = make_nuget_node(
+        config.package,
+        config.version,
+    )
+
+    def provider(node):
+        return get_nuget_dependency_nodes(
+            config.repository,
+            node,
+        )
+
+    graph = build_dependency_graph(
+        start_node,
+        provider,
+    )
+    print_graph(graph)
+
+
+def run(config):
+    """Запустить выбранный режим работы."""
+    if config.test_mode:
+        run_test_mode(config)
+        return
+
+    run_nuget_mode(config)
 
 
 def main():
@@ -66,16 +102,11 @@ def main():
 
     try:
         config = load_config(args.config)
-        dependencies = load_dependencies(config)
+        run(config)
     except ValueError as error:
         print(f"Ошибка: {error}")
         return 1
 
-    print_dependencies(
-        config.package,
-        config.version,
-        dependencies,
-    )
     return 0
 
 

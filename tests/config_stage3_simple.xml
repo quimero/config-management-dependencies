@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<config>
+    <package>A</package>
+    <repository>tests/repositories/simple.json</repository>
+    <test_mode>true</test_mode>
+    <version>1.0.0</version>
+    <output_file>dependencies.png</output_file>
+    <ascii_tree>false</ascii_tree>
+</config>
