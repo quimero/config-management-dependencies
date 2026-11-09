@@ -2,11 +2,14 @@
 
 import unittest
 
-from src.graph import build_dependency_graph
+from src.graph import (
+    build_dependency_graph,
+    build_reverse_dependency_graph,
+)
 
 
 class TestGraph(unittest.TestCase):
-    """Проверить алгоритм DFS."""
+    """Проверить операции над графом."""
 
     def test_simple_graph(self):
         """Построить обычный граф."""
@@ -17,12 +20,9 @@ class TestGraph(unittest.TestCase):
             "D": [],
         }
 
-        def provider(package):
-            return repository[package]
-
         graph = build_dependency_graph(
             "A",
-            provider,
+            repository.get,
         )
 
         self.assertEqual(
@@ -45,60 +45,133 @@ class TestGraph(unittest.TestCase):
             "E": [],
         }
 
-        def provider(package):
-            return repository[package]
-
         graph = build_dependency_graph(
             "A",
-            provider,
+            repository.get,
         )
 
-        self.assertIn("E", graph)
-        self.assertEqual(graph["D"], ["E"])
+        self.assertEqual(
+            graph["D"],
+            ["E"],
+        )
+        self.assertIn(
+            "E",
+            graph,
+        )
 
     def test_cycle(self):
-        """Обработать циклическую зависимость."""
+        """Обработать циклический граф."""
         repository = {
             "A": ["B"],
             "B": ["C"],
             "C": ["A"],
         }
 
-        def provider(package):
-            return repository[package]
-
         graph = build_dependency_graph(
             "A",
-            provider,
+            repository.get,
         )
 
-        self.assertEqual(
-            graph["C"],
-            ["A"],
-        )
         self.assertEqual(
             set(graph),
             {"A", "B", "C"},
         )
+        self.assertEqual(
+            graph["C"],
+            ["A"],
+        )
 
     def test_single_package(self):
-        """Построить граф без зависимостей."""
+        """Обработать пакет без зависимостей."""
         repository = {
             "A": [],
         }
 
-        def provider(package):
-            return repository[package]
-
         graph = build_dependency_graph(
             "A",
-            provider,
+            repository.get,
         )
 
         self.assertEqual(
             graph,
             {"A": []},
         )
+
+    def test_reverse_simple_graph(self):
+        """Найти обратные зависимости простого графа."""
+        graph = {
+            "A": ["B", "C"],
+            "B": ["D"],
+            "D": [],
+            "C": ["D"],
+        }
+
+        reverse_graph = (
+            build_reverse_dependency_graph(
+                graph,
+                "D",
+            )
+        )
+
+        self.assertEqual(
+            set(reverse_graph),
+            {"D", "B", "C", "A"},
+        )
+
+    def test_reverse_deep_graph(self):
+        """Найти обратные зависимости глубокого графа."""
+        graph = {
+            "A": ["B"],
+            "B": ["C"],
+            "C": ["D"],
+            "D": ["E"],
+            "E": [],
+        }
+
+        reverse_graph = (
+            build_reverse_dependency_graph(
+                graph,
+                "E",
+            )
+        )
+
+        self.assertEqual(
+            set(reverse_graph),
+            {"E", "D", "C", "B", "A"},
+        )
+
+    def test_reverse_cycle(self):
+        """Обработать цикл в обратном графе."""
+        graph = {
+            "A": ["B"],
+            "B": ["C"],
+            "C": ["A"],
+        }
+
+        reverse_graph = (
+            build_reverse_dependency_graph(
+                graph,
+                "B",
+            )
+        )
+
+        self.assertEqual(
+            set(reverse_graph),
+            {"A", "B", "C"},
+        )
+
+    def test_reverse_missing_target(self):
+        """Обработать отсутствующий целевой узел."""
+        graph = {
+            "A": ["B"],
+            "B": [],
+        }
+
+        with self.assertRaises(ValueError):
+            build_reverse_dependency_graph(
+                graph,
+                "C",
+            )
 
 
 if __name__ == "__main__":
