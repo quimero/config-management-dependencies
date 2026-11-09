@@ -3,10 +3,7 @@
 import argparse
 
 from src.config import load_config
-from src.graph import (
-    build_dependency_graph,
-    build_reverse_dependency_graph,
-)
+from src.graph import build_dependency_graph
 from src.nuget import (
     get_nuget_dependency_nodes,
     make_nuget_node,
@@ -15,6 +12,12 @@ from src.test_repository import (
     get_test_dependencies,
     load_test_repository,
     make_test_node,
+)
+from src.visualization import (
+    build_ascii_tree,
+    graph_to_d2,
+    render_d2,
+    save_d2_source,
 )
 
 
@@ -31,44 +34,7 @@ def parse_args():
         default=DEFAULT_CONFIG,
         help="Путь к XML-конфигурации",
     )
-    parser.add_argument(
-        "--reverse",
-        help="Узел для поиска обратных зависимостей",
-    )
     return parser.parse_args()
-
-
-def print_graph(graph):
-    """Вывести граф зависимостей."""
-    print("Граф зависимостей:")
-
-    for package, dependencies in graph.items():
-        if dependencies:
-            text = ", ".join(dependencies)
-        else:
-            text = "-"
-
-        print(f"{package} -> {text}")
-
-
-def print_reverse_dependencies(graph, target):
-    """Вывести найденные обратные зависимости."""
-    print(
-        f"Обратные зависимости для {target}:"
-    )
-
-    dependencies = [
-        package
-        for package in graph
-        if package != target
-    ]
-
-    if not dependencies:
-        print("-")
-        return
-
-    for package in dependencies:
-        print(package)
 
 
 def build_test_graph(config):
@@ -122,23 +88,48 @@ def build_graph(config):
     return build_nuget_graph(config)
 
 
-def run(config, reverse_target=None):
+def get_graph_root(graph):
+    """Получить корневой узел графа."""
+    if not graph:
+        raise ValueError(
+            "Граф зависимостей пуст"
+        )
+
+    return next(iter(graph))
+
+
+def visualize_graph(graph, config):
+    """Создать представления графа."""
+    d2_text = graph_to_d2(graph)
+    source_file = save_d2_source(
+        d2_text,
+        config.output_file,
+    )
+    render_d2(
+        source_file,
+        config.output_file,
+    )
+
+    print(f"D2-файл: {source_file}")
+    print(f"PNG-файл: {config.output_file}")
+
+    if config.ascii_tree:
+        root = get_graph_root(graph)
+        print("ASCII-дерево:")
+        print(
+            build_ascii_tree(
+                graph,
+                root,
+            )
+        )
+
+
+def run(config):
     """Запустить приложение."""
     graph = build_graph(config)
-
-    if reverse_target is None:
-        print_graph(graph)
-        return
-
-    reverse_dependencies = (
-        build_reverse_dependency_graph(
-            graph,
-            reverse_target,
-        )
-    )
-    print_reverse_dependencies(
-        reverse_dependencies,
-        reverse_target,
+    visualize_graph(
+        graph,
+        config,
     )
 
 
@@ -148,10 +139,7 @@ def main():
 
     try:
         config = load_config(args.config)
-        run(
-            config,
-            args.reverse,
-        )
+        run(config)
     except ValueError as error:
         print(f"Ошибка: {error}")
         return 1
